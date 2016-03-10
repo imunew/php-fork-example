@@ -3,7 +3,7 @@
 namespace App;
 
 
-class AbstractProcessor
+abstract class AbstractProcessor implements ProcessorInterface
 {
     protected $rowCount = 10000;
     protected $columnCount = 100;

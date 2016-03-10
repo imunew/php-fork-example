@@ -3,67 +3,34 @@
 namespace App;
 
 
-class AsyncProcessor extends AbstractProcessor
+class AsyncProcessor extends AbstractParallelProcessor
 {
-    private $processCount = 10;
-    private $rowCountInProcess;
 
-    public function __construct()
-    {
-        parent::__construct();
-
-        $this->rowCountInProcess = (int)($this->rowCount / $this->processCount);
-    }
-
-    public function execute($name)
+    protected function beforeProcess($name)
     {
         $this->removeCsvFiles($this->tempDir);
-
-        $processes = [];
-
-        foreach (range(1, $this->processCount) as $processNumber)
-        {
-            $pid = pcntl_fork();
-            if($pid === -1)
-            {
-                die('fork failed!');
-            }
-            else if ($pid)
-            {
-                // In parent process
-                $processes[$pid] = true;
-                if( count( $processes ) >= $this->processCount )
-                {
-                    unset( $processes[ pcntl_waitpid( -1, $status, WUNTRACED ) ] );
-                }
-            }
-            else
-            {
-                $path = $this->buildFilePath($name, '_'. sprintf("%02d", $processNumber));
-                $fp = fopen($path, 'a');
-
-                $startRowNumber = ($processNumber - 1) * ($this->rowCountInProcess) + 1;
-                $endRowNumber = $startRowNumber + ($this->rowCountInProcess) - 1;
-                for ($rowNumber = $startRowNumber; $rowNumber <= $endRowNumber; $rowNumber++)
-                {
-                    $data = $this->createData($rowNumber);
-                    fputcsv($fp, $data);
-                }
-
-                fclose($fp);
-
-                exit();
-            }
-        }
-        /** Wait for all child processes */
-        while( count( $processes ) > 0 )
-        {
-            unset( $processes[ pcntl_waitpid( -1, $status, WUNTRACED ) ] );
-        }
-
-        $this->mergeCsvFiles($name);
     }
 
+    protected function process($name, $processNumber)
+    {
+        $path = $this->buildFilePath($name, '_'. sprintf("%02d", $processNumber));
+        $fp = fopen($path, 'a');
+
+        $startRowNumber = ($processNumber - 1) * ($this->rowCountInProcess) + 1;
+        $endRowNumber = $startRowNumber + ($this->rowCountInProcess) - 1;
+        for ($rowNumber = $startRowNumber; $rowNumber <= $endRowNumber; $rowNumber++)
+        {
+            $data = $this->createData($rowNumber);
+            fputcsv($fp, $data);
+        }
+
+        fclose($fp);
+    }
+
+    protected function afterProcess($name)
+    {
+        $this->mergeCsvFiles($name);
+    }
 
     private function mergeCsvFiles($name)
     {
